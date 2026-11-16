@@ -4,6 +4,13 @@ from game.color_button import ColorButton
 
 
 class GameEngine:
+    INITIAL_FLASH_DURATION = 450
+    MIN_FLASH_DURATION = 200
+    FLASH_DURATION_STEP = 25
+    INITIAL_PAUSE_DURATION = 200
+    MIN_PAUSE_DURATION = 100
+    PAUSE_DURATION_STEP = 10
+
     def __init__(self, width, height):
         self.width = width
         self.height = height
@@ -27,8 +34,8 @@ class GameEngine:
         self.state = "WATCH"
         self.showing_step = 0
         self.step_start_time = 0
-        self.flash_duration = 450
-        self.pause_duration = 200
+        self.flash_duration = self.INITIAL_FLASH_DURATION
+        self.pause_duration = self.INITIAL_PAUSE_DURATION
         self.is_flashing = False
 
         self.player_lit_button = None
@@ -44,7 +51,17 @@ class GameEngine:
         new_color = random.randint(0, 3)
 
         self.sequence.append(new_color)
-        
+
+        round_index = len(self.sequence) - 1
+        self.flash_duration = max(
+            self.MIN_FLASH_DURATION,
+            self.INITIAL_FLASH_DURATION - round_index * self.FLASH_DURATION_STEP,
+        )
+        self.pause_duration = max(
+            self.MIN_PAUSE_DURATION,
+            self.INITIAL_PAUSE_DURATION - round_index * self.PAUSE_DURATION_STEP,
+        )
+
         self.player_input.clear()
         self.state = "WATCH"
         self.showing_step = 0

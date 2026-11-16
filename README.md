@@ -63,6 +63,7 @@ Players currently have unlimited time to study the board between clicks. Introdu
 
 - At the beginning of each round, the game displays the accumulated sequence step-by-step with illuminated button states.   
 - Each round strictly appends one new step rather than duplicating previous patterns.  
+- Playback speeds up in later rounds, with a minimum 200 ms flash and 100 ms pause.  
 - Left-clicking a pad illuminates it briefly and registers the player's guess.
 - Entering any incorrect button immediately triggers the Game Over screen.
 - Pressing R on the Game Over screen clears the sequence, score, and state back to round 1.
