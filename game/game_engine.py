@@ -1,4 +1,10 @@
+import array
+import io
+import math
 import random
+import warnings
+import wave
+
 import pygame
 from game.color_button import ColorButton
 
@@ -10,6 +16,9 @@ class GameEngine:
     INITIAL_PAUSE_DURATION = 200
     MIN_PAUSE_DURATION = 100
     PAUSE_DURATION_STEP = 10
+    BUTTON_FREQUENCIES = (261.63, 329.63, 392.00, 523.25)
+    SOUND_SAMPLE_RATE = 44100
+    SOUND_DURATION = 0.15
 
     def __init__(self, width, height):
         self.width = width
@@ -26,6 +35,7 @@ class GameEngine:
             ColorButton(2, pygame.Rect(start_x, start_y + pad_size + gap, pad_size, pad_size), (15, 100, 30), (50, 255, 90)),    # Green
             ColorButton(3, pygame.Rect(start_x + pad_size + gap, start_y + pad_size + gap, pad_size, pad_size), (140, 110, 10), (255, 235, 40)), # Yellow
         ]
+        self.button_sounds = self._create_button_sounds()
 
         self.sequence = []
         self.player_input = []
@@ -47,6 +57,44 @@ class GameEngine:
 
         self.start_next_round()
 
+    def _create_button_sounds(self):
+        try:
+            if pygame.mixer.get_init() is None:
+                pygame.mixer.init()
+            return [
+                self._create_tone(frequency)
+                for frequency in self.BUTTON_FREQUENCIES
+            ]
+        except pygame.error as error:
+            warnings.warn(
+                f"Game audio is unavailable; sound effects are disabled: {error}",
+                RuntimeWarning,
+            )
+            return []
+
+    @classmethod
+    def _create_tone(cls, frequency):
+        sample_count = int(cls.SOUND_SAMPLE_RATE * cls.SOUND_DURATION)
+        samples = array.array("h")
+        for sample_index in range(sample_count):
+            envelope = 1 - sample_index / sample_count
+            sample = math.sin(2 * math.pi * frequency * sample_index / cls.SOUND_SAMPLE_RATE)
+            samples.append(int(32767 * 0.25 * envelope * sample))
+
+        audio_buffer = io.BytesIO()
+        with wave.open(audio_buffer, "wb") as audio_file:
+            audio_file.setnchannels(1)
+            audio_file.setsampwidth(2)
+            audio_file.setframerate(cls.SOUND_SAMPLE_RATE)
+            audio_file.writeframes(samples.tobytes())
+        audio_buffer.seek(0)
+        return pygame.mixer.Sound(file=audio_buffer)
+
+    def _light_button(self, button):
+        button.is_lit = True
+        if self.button_sounds:
+            self.button_sounds[button.color_id].play()
+
     def start_next_round(self):
         new_color = random.randint(0, 3)
 
@@ -67,7 +115,7 @@ class GameEngine:
         self.showing_step = 0
         self.step_start_time = pygame.time.get_ticks()
         self.is_flashing = True
-        self.buttons[self.sequence[0]].is_lit = True
+        self._light_button(self.buttons[self.sequence[0]])
 
     def update(self):
         now = pygame.time.get_ticks()
@@ -90,7 +138,7 @@ class GameEngine:
                     self.showing_step += 1
                     if self.showing_step < len(self.sequence):
                         next_id = self.sequence[self.showing_step]
-                        self.buttons[next_id].is_lit = True
+                        self._light_button(self.buttons[next_id])
                         self.is_flashing = True
                         self.step_start_time = now
                     else:
@@ -105,7 +153,7 @@ class GameEngine:
         if self.state == "PLAYER_TURN" and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for btn in self.buttons:
                 if btn.contains(event.pos):
-                    btn.is_lit = True
+                    self._light_button(btn)
                     self.player_lit_button = btn
                     self.player_lit_start = pygame.time.get_ticks()
 
