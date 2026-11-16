@@ -65,6 +65,7 @@ Players currently have unlimited time to study the board between clicks. Introdu
 - Each round strictly appends one new step rather than duplicating previous patterns.  
 - Playback speeds up in later rounds, with a minimum 200 ms flash and 100 ms pause.  
 - Each color plays a distinct synthesized tone during playback and when clicked.  
+- During the player's turn, a 5-second timer bar resets after each correct input; expiry ends the game.  
 - Left-clicking a pad illuminates it briefly and registers the player's guess.
 - Entering any incorrect button immediately triggers the Game Over screen.
 - Pressing R on the Game Over screen clears the sequence, score, and state back to round 1.

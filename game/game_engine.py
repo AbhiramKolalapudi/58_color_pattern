@@ -19,6 +19,7 @@ class GameEngine:
     BUTTON_FREQUENCIES = (261.63, 329.63, 392.00, 523.25)
     SOUND_SAMPLE_RATE = 44100
     SOUND_DURATION = 0.15
+    PLAYER_TURN_DURATION = 5000
 
     def __init__(self, width, height):
         self.width = width
@@ -42,11 +43,13 @@ class GameEngine:
         self.score = 0
 
         self.state = "WATCH"
+        self.game_over_reason = None
         self.showing_step = 0
         self.step_start_time = 0
         self.flash_duration = self.INITIAL_FLASH_DURATION
         self.pause_duration = self.INITIAL_PAUSE_DURATION
         self.is_flashing = False
+        self.player_turn_start_time = None
 
         self.player_lit_button = None
         self.player_lit_start = 0
@@ -54,6 +57,7 @@ class GameEngine:
 
         self.font_title = pygame.font.SysFont(None, 40)
         self.font_medium = pygame.font.SysFont(None, 28)
+        self.font_small = pygame.font.SysFont(None, 22)
 
         self.start_next_round()
 
@@ -95,6 +99,15 @@ class GameEngine:
         if self.button_sounds:
             self.button_sounds[button.color_id].play()
 
+    def _check_player_timeout(self, now):
+        if (
+            self.state == "PLAYER_TURN"
+            and self.player_turn_start_time is not None
+            and now - self.player_turn_start_time >= self.PLAYER_TURN_DURATION
+        ):
+            self.state = "GAME_OVER"
+            self.game_over_reason = "TIME'S UP!"
+
     def start_next_round(self):
         new_color = random.randint(0, 3)
 
@@ -112,6 +125,7 @@ class GameEngine:
 
         self.player_input.clear()
         self.state = "WATCH"
+        self.player_turn_start_time = None
         self.showing_step = 0
         self.step_start_time = pygame.time.get_ticks()
         self.is_flashing = True
@@ -119,6 +133,7 @@ class GameEngine:
 
     def update(self):
         now = pygame.time.get_ticks()
+        self._check_player_timeout(now)
 
         if self.player_lit_button is not None:
             if now - self.player_lit_start >= self.player_flash_duration:
@@ -143,11 +158,16 @@ class GameEngine:
                         self.step_start_time = now
                     else:
                         self.state = "PLAYER_TURN"
+                        self.player_turn_start_time = now
 
     def handle_event(self, event):
         if self.state == "GAME_OVER":
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 self.reset()
+            return
+
+        self._check_player_timeout(pygame.time.get_ticks())
+        if self.state == "GAME_OVER":
             return
 
         if self.state == "PLAYER_TURN" and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -166,16 +186,20 @@ class GameEngine:
 
         if self.player_input[current_idx] != self.sequence[current_idx]:
             self.state = "GAME_OVER"
+            self.game_over_reason = "WRONG PATTERN!"
             return
 
         if len(self.player_input) == len(self.sequence):
             self.score += 1
             self.start_next_round()
+        else:
+            self.player_turn_start_time = pygame.time.get_ticks()
 
     def reset(self):
         self.sequence.clear()
         self.player_input.clear()
         self.score = 0
+        self.game_over_reason = None
         for btn in self.buttons:
             btn.is_lit = False
         self.player_lit_button = None
@@ -195,6 +219,35 @@ class GameEngine:
         status_surf = self.font_medium.render(status_text, True, status_color)
         screen.blit(status_surf, (self.width // 2 - status_surf.get_width() // 2, 95))
 
+        if self.state == "PLAYER_TURN":
+            elapsed = pygame.time.get_ticks() - self.player_turn_start_time
+            remaining = max(0, self.PLAYER_TURN_DURATION - elapsed)
+            fraction = remaining / self.PLAYER_TURN_DURATION
+            timer_rect = pygame.Rect(self.width // 2 - 125, 128, 250, 16)
+            fill_width = int(timer_rect.width * fraction)
+            timer_color = (70, 220, 120)
+            if fraction <= 0.5:
+                timer_color = (245, 190, 60)
+            if fraction <= 0.25:
+                timer_color = (240, 75, 70)
+
+            label = self.font_small.render("TIME", True, (220, 225, 235))
+            screen.blit(label, (timer_rect.left - label.get_width() - 10, 124))
+            pygame.draw.rect(screen, (55, 60, 70), timer_rect, border_radius=7)
+            if fill_width > 0:
+                fill_rect = pygame.Rect(
+                    timer_rect.left,
+                    timer_rect.top,
+                    fill_width,
+                    timer_rect.height,
+                )
+                pygame.draw.rect(screen, timer_color, fill_rect, border_radius=7)
+            pygame.draw.rect(screen, (220, 225, 235), timer_rect, width=2, border_radius=7)
+
+            seconds_left = remaining / 1000
+            time_label = self.font_small.render(f"{seconds_left:.1f}s", True, (220, 225, 235))
+            screen.blit(time_label, (timer_rect.right + 8, 124))
+
         for btn in self.buttons:
             btn.render(screen)
 
@@ -203,7 +256,11 @@ class GameEngine:
             overlay.fill((0, 0, 0, 200))
             screen.blit(overlay, (0, 0))
 
-            over_surf = self.font_title.render("WRONG PATTERN! GAME OVER", True, (240, 70, 70))
+            over_surf = self.font_title.render(
+                f"{self.game_over_reason} GAME OVER",
+                True,
+                (240, 70, 70),
+            )
             screen.blit(over_surf, (self.width // 2 - over_surf.get_width() // 2, self.height // 2 - 40))
 
             final_score_surf = self.font_medium.render(f"Final Score: {self.score}", True, (255, 255, 255))
